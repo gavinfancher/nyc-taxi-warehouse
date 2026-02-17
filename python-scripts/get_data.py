@@ -4,18 +4,23 @@ import os
 import httpx
 import pandas as pd
 from pathlib import Path
+from dotenv import load_dotenv
 from google.cloud import bigquery, storage
+
+
+# ------- load environment variables
+load_dotenv(Path(__file__).parent.parent / '.env')
 
 BASE_URL = 'https://d37ci6vzurychx.cloudfront.net/trip-data'
 LOOKUP_URL = 'https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv'
 DATASETS = {
     'yellow': 'yellow_tripdata',
-    'fhvhv': 'fhvhv_tripdata'
+    'rideshare': 'fhvhv_tripdata'
 }
 YEAR = 2020
 
 GCS_BUCKET = os.environ['GCS_BUCKET']
-BQ_DATASET = os.environ.get('BQ_DATASET', 'ny_taxi_data')
+BQ_DATASET = os.environ['BQ_DATASET']
 
 
 def upload_to_gcs(local_path: Path, gcs_path: str) -> str:
