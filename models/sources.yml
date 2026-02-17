@@ -5,3 +5,5 @@ sources:
     schema: ny_taxi_data
     tables:
       - name: yellow_trips
+      - name: fhvhv_trips
+      - name: taxi_zone_lookup
