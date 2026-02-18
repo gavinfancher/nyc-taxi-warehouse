@@ -7,7 +7,6 @@ __pycache__/
 
 # accidental data generation
 *.parquet
-*.csv
 
 # dbt
 target/
