@@ -1,6 +1,7 @@
 '''Download 2020 NYC TLC trip data (Yellow Taxi + FHVHV), upload to GCS, and load into BigQuery.'''
 
 import os
+import tempfile
 import httpx
 import pandas as pd
 from pathlib import Path
@@ -8,8 +9,10 @@ from dotenv import load_dotenv
 from google.cloud import bigquery, storage
 
 
-# ------- load environment variables
-load_dotenv(Path(__file__).parent.parent / '.env')
+# ------- load environment variables (skip in container where .env doesn't exist)
+env_path = Path(__file__).parent.parent / '.env'
+if env_path.exists():
+    load_dotenv(env_path)
 
 BASE_URL = 'https://d37ci6vzurychx.cloudfront.net/trip-data'
 LOOKUP_URL = 'https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv'
@@ -41,7 +44,7 @@ def load_gcs_to_bigquery(gcs_uri: str, table_id: str, source_format: str = 'PARQ
 
     job_config = bigquery.LoadJobConfig(
         source_format=getattr(bigquery.SourceFormat, source_format),
-        write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+        write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
     )
     if source_format == 'CSV':
         job_config.skip_leading_rows = 1
@@ -54,11 +57,13 @@ def load_gcs_to_bigquery(gcs_uri: str, table_id: str, source_format: str = 'PARQ
 
 
 def main():
+    work_dir = Path(tempfile.gettempdir())
+
     for label, prefix in DATASETS.items():
         monthly_files = []
         for month in range(1, 13):
             filename = f'{prefix}_{YEAR}-{month:02d}.parquet'
-            dest = Path(filename)
+            dest = work_dir / filename
             if not dest.exists():
                 print(f'Downloading {filename}...')
                 resp = httpx.get(
@@ -71,7 +76,7 @@ def main():
             monthly_files.append(dest)
 
         df = pd.concat([pd.read_parquet(f) for f in monthly_files])
-        output = Path(f'{label}_trips_{YEAR}.parquet')
+        output = work_dir / f'{label}_trips_{YEAR}.parquet'
         df.to_parquet(output, compression='snappy')
         print(f'Wrote {output} ({len(df):,} rows)')
 
@@ -83,7 +88,7 @@ def main():
         load_gcs_to_bigquery(gcs_uri, table_name)
         output.unlink()
 
-    lookup = Path('taxi_zone_lookup.csv')
+    lookup = work_dir / 'taxi_zone_lookup.csv'
     if not lookup.exists():
         resp = httpx.get(LOOKUP_URL, follow_redirects=True, timeout=60)
         resp.raise_for_status()
